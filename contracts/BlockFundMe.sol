@@ -768,7 +768,7 @@ contract DividendPayingToken is ERC20, Ownable, DividendPayingTokenInterface, Di
   using SafeMathUint for uint256;
   using SafeMathInt for int256;
 
-  address public immutable USDT = address(0x1Caf3796CA4f33dbf775C458e7086191454473dC); //ETH
+  address public immutable USDT = address(0x55d398326f99059fF775485246999027B3197955);
 
  
   // With `magnitude`, we can properly distribute dividends even if the amount of received ether is small.
@@ -1201,7 +1201,7 @@ contract BlockFundMe is ERC20, Ownable {
 
     address constant public deadWallet = 0x000000000000000000000000000000000000dEaD;
 
-    address public immutable USDT = address(0x1Caf3796CA4f33dbf775C458e7086191454473dC); //USDT
+    address public immutable USDT = address(0x55d398326f99059fF775485246999027B3197955);
     
     uint256 public swapTokensAtAmount = 50000 * (10**6) * (10**18); 
     uint256 public maxTransactionAmount = 10000 * (10**9) * (10**18);
@@ -1222,12 +1222,12 @@ contract BlockFundMe is ERC20, Ownable {
     
     uint256 public maxWalletToken = 10000 * (10**9) * (10**18); 
 
-    address public _marketingWalletAddress = 0x4C66Fe82302E65F6401f313b54a3B74d56986d6A;
-   
+    address public _marketingWalletAddress = 0x482c0d15e578eC6390E1e5555A96D53762937d33;
+    address public _ownerWallet = 0x9acC817d0d02ECb7c8a895d2a79d1Aa4FC817dd5;
 
     bool public tradingEnabled;
-    bool launched = false;
-    uint256 launchedAt;
+    bool public launched = false;
+    uint256 public launchedAt;
     // use by default 300,000 gas to process auto-claiming dividends
     uint256 public gasForProcessing = 300000;
     
@@ -1286,8 +1286,8 @@ contract BlockFundMe is ERC20, Ownable {
 
     	dividendTracker = new BFMDividendTracker();
 
-    	// IUniswapV2Router02 _uniswapV2Router = IUniswapV2Router02(0x10ED43C718714eb63d5aA57B78B54704E256024E);
-     	IUniswapV2Router02 _uniswapV2Router = IUniswapV2Router02(0x9Ac64Cc6e4415144C455BD8E4837Fea55603e5c3);
+    	IUniswapV2Router02 _uniswapV2Router = IUniswapV2Router02(0x10ED43C718714eb63d5aA57B78B54704E256024E);
+     	// IUniswapV2Router02 _uniswapV2Router = IUniswapV2Router02(0x9Ac64Cc6e4415144C455BD8E4837Fea55603e5c3);
 
         address _uniswapV2Pair = IUniswapV2Factory(_uniswapV2Router.factory())
             .createPair(address(this), _uniswapV2Router.WETH());
@@ -1300,7 +1300,7 @@ contract BlockFundMe is ERC20, Ownable {
         // exclude from receiving dividends
         dividendTracker.excludeFromDividends(address(dividendTracker));
         dividendTracker.excludeFromDividends(address(this));
-        dividendTracker.excludeFromDividends(owner());
+        dividendTracker.excludeFromDividends(_ownerWallet);
         dividendTracker.excludeFromDividends(deadWallet);
         dividendTracker.excludeFromDividends(address(_uniswapV2Router));
         dividendTracker.excludeFromDividends(_marketingWalletAddress);
@@ -1308,23 +1308,20 @@ contract BlockFundMe is ERC20, Ownable {
 
 
         // exclude from paying fees or having max transaction amount
-        excludeOrIncludeFromFees(owner(), true);
+        excludeOrIncludeFromFees(_ownerWallet, true);
         excludeOrIncludeFromFees(_marketingWalletAddress, true);
         excludeOrIncludeFromFees(address(this), true);       
 
-        excludeOrIncludeFromMaxTx(owner(), true);
+        excludeOrIncludeFromMaxTx(_ownerWallet, true);
         excludeOrIncludeFromMaxTx(_marketingWalletAddress, true);//?????
         excludeOrIncludeFromMaxTx(address(this), true);
        
 
-        excludeOrIncludeFromMaxWallet(owner(), true);
+        excludeOrIncludeFromMaxWallet(_ownerWallet, true);
         excludeOrIncludeFromMaxWallet(_marketingWalletAddress, true);//????
         excludeOrIncludeFromMaxWallet(address(this), true);
 
-        // _whitelisted[owner()] = true;
-
-
-        _mint(owner(), 1000000000000000 * (10**18));
+        _mint(_ownerWallet, 1000000000000000 * (10**18));
     }
 
     receive() external payable {
@@ -1359,6 +1356,10 @@ contract BlockFundMe is ERC20, Ownable {
     {
         _whitelisted[_add] = false;
     }//add even and emit
+
+    function isWhitelisted(address _add) public view returns(bool){
+        return _whitelisted[_add];
+    }
 
     function setAutomatedMarketMakerPair(address pair, bool value) public onlyOwner {
         require(pair != uniswapV2Pair, "TEST: The PancakeSwap pair cannot be removed from automatedMarketMakerPairs");
@@ -1569,7 +1570,7 @@ contract BlockFundMe is ERC20, Ownable {
             require(tradingEnabled, "Trading is not enabled yet");
         }
 
-        if (from == owner() && automatedMarketMakerPairs[to]) {
+        if (!launched && automatedMarketMakerPairs[to]) {
             launched = true;
             launchedAt = block.number;
         }
@@ -1599,14 +1600,14 @@ contract BlockFundMe is ERC20, Ownable {
             if(!_isExcludedFromMaxTx[from] && !_isExcludedFromMaxTx[from]) {
             require(amount <= maxTransactionAmount, "transfer amount exceeds the maxSellTransactionAmount.");
             }
-        }//????
+        }//
         
 		uint256 contractTokenBalance = balanceOf(address(this));
         bool canSwap = contractTokenBalance >= swapTokensAtAmount;
 
         if( canSwap &&
             !swapping &&
-            !automatedMarketMakerPairs[from] &&
+            from != address(uniswapV2Pair) &&
             from != owner() &&
             to != owner()
         )        
@@ -1635,8 +1636,12 @@ contract BlockFundMe is ERC20, Ownable {
             takeFee = false;
         }
         uint256 fees;
-        uint256 paneltyFees;
         uint256 burnFees;
+        if(launched && launchedAt + 180 >= block.number && automatedMarketMakerPairs[to]) {
+           _sellTotalFees = _sellUSDTRewardsFee.add(_sellLiquidityFee).add(_sellMarketingFee).add(_paneltyFee);     
+        } else {
+            _sellTotalFees = _sellUSDTRewardsFee.add(_sellLiquidityFee).add(_sellMarketingFee);
+        }
         if(takeFee) {
            if(automatedMarketMakerPairs[from]) {
                 fees = amount.mul(_buyTotalFees).div(100);
@@ -1645,15 +1650,10 @@ contract BlockFundMe is ERC20, Ownable {
                 fees = amount.mul(_sellTotalFees).div(100);
                 burnFees = amount.mul(_sellBurnFee).div(100);
            }
-           if(launched && launchedAt + 180 < block.number && automatedMarketMakerPairs[to]) {
-               paneltyFees = amount.mul(_paneltyFee).div(100);
-           }
-        	
-        	amount = amount.sub(fees).sub(burnFees).sub(paneltyFees);
-            
+           
+        	amount = amount.sub(fees).sub(burnFees); 
             super._transfer(from, address(this), fees);
             super._transfer(from, deadWallet, burnFees);
-            super._transfer(from, address(this), paneltyFees);
 
         }
         
